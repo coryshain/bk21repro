@@ -5,6 +5,7 @@ import csv
 import pandas as pd
 
 
+# Global variables
 OSF = 'b9kns'
 HEADER = re.compile('.*# (\d+)\. (.+)\.')
 NAME_MAP = {
@@ -23,7 +24,7 @@ COLS = list(NAME_MAP.values()) + [
     'condition', 'cloze', 'log_cloze', 'trigram', 'log_trigram'
 ] + GPT_COLS
 
-# Get lists
+# Get experimental lists
 list1 = pd.read_csv(os.path.join('resources', 'List1.csv'))
 list2 = pd.read_csv(os.path.join('resources', 'List2.csv'))
 list3 = pd.read_csv(os.path.join('resources', 'List3.csv'))
@@ -51,16 +52,16 @@ if not os.path.exists(OSF):
     shutil.move('osfstorage', OSF)
 
 BK_orig = pd.read_csv(os.path.join(OSF, 'SPRT_LogLin_216.csv'))
-
 items = BK_orig[['ITEM', 'position', 'critical_word', 'condition', 'cloze', 'log_cloze', 'trigram', 'log_trigram']]
 items = items.drop_duplicates()
+
 gpt_items = pd.read_csv(os.path.join('resources', 'gpt.csv'))
 gpt_items = gpt_items.rename(dict(group='ITEM'), axis=1)
 gpt_items = gpt_items[['ITEM', 'condition'] + GPT_COLS]
 
 # Get experiment data by munging horrible Ibex output
 dataset = []
-for path in ('results_dev.csv', 'results_prod.csv'):
+for path in os.listdir('ibex'):
     with open(os.path.join('ibex', path), 'r') as f:
         reader = csv.reader(f)
         headers = []
@@ -99,41 +100,42 @@ if not os.path.exists('data'):
 
 # Merge data
 dataset = pd.concat(dataset, axis=0)
-dataset.to_csv(os.path.join('data', 'all.csv'), index=False)
-dataset = pd.read_csv(os.path.join('data', 'all.csv'))
+dataset.to_csv(os.path.join('data', 'word.csv'), index=False)
+dataset = pd.read_csv(os.path.join('data', 'word.csv'))
 dataset = dataset.rename(NAME_MAP, axis=1)
 dataset.ITEM -= 1
 dataset = pd.merge(dataset, lists, on=['ITEM', 'selected_list'])
 dataset.ITEM += 4 # For some reason the BK item numbers start at 5
-dataset = pd.merge(dataset, items, on=['ITEM', 'condition'])
-dataset = pd.merge(dataset, gpt_items, on=['ITEM', 'condition'])
 dataset = dataset.sort_values(['SUB', 'time', 'ITEM', 'wordpos'])
 
 # Timestamp things
 # Events are timestamped relative to the END of each SPR trial. Fix this.
-# Get trial durations
+# 1. Get trial durations
 dataset['item_end'] = dataset.time
 dataset['item_duration'] = dataset.groupby(['SUB', 'ITEM'])['RT'].transform('sum')
-# Subtract trial durations from timestamps
+# 2. Subtract trial durations from timestamps
 dataset.time -= dataset.item_duration
-# Compute word onsets from RT cumsums
+# 3. Compute word onsets from RT cumsums
 dataset.time += dataset.groupby(['SUB', 'ITEM']).RT.\
     transform(lambda x: x.cumsum().shift(1, fill_value=0))
-# Subtract out the minimum timestamp to make timestamps relative to expt start
+# 4. Subtract out the minimum timestamp to make timestamps relative to expt start
 dataset['expt_start'] = dataset.groupby('SUB')['time'].transform('min')
 dataset.time -= dataset.expt_start
 dataset.question_response_timestamp -= dataset.expt_start
 dataset.item_end -= dataset.expt_start
-# Get question RTs
+# 5. Get question RTs
 dataset['question_RT'] = dataset.question_response_timestamp - dataset.item_end
-# Rescale to seconds
+# 6. Rescale to seconds
 dataset.time /= 1000
 dataset.question_response_timestamp /= 1000
 
-# Save
-dataset = dataset[COLS]
-dataset.to_csv(os.path.join('data', 'all.csv'), index=False)
+# Save full word-level dataset
+cols = [x for x in COLS if x in dataset]
+dataset = dataset[cols]
+dataset.to_csv(os.path.join('data', 'word.csv'), index=False)
 
+# Compile and save item-level dataset
+dataset = pd.merge(dataset, items, on=['ITEM', 'condition'])
 dataset['critical_offset'] = dataset['wordpos'] - dataset['position']
 dataset = dataset[(dataset.critical_offset >= 0) & (dataset.critical_offset < 3)]
 dataset['SUM_3RT'] = dataset.groupby(['SUB', 'ITEM'])['RT'].transform('sum')
@@ -145,7 +147,9 @@ dataset['SUM_3RT_trimmed'] = dataset[['SUM_3RT', 'cutoff']].min(axis=1)
 dataset['cutoff'] = 300
 dataset['SUM_3RT_trimmed'] = dataset[['SUM_3RT_trimmed', 'cutoff']].max(axis=1)
 del dataset['cutoff']
-dataset.to_csv(os.path.join('data', 'main.csv'))
+dataset = pd.merge(dataset, gpt_items, on=['ITEM', 'condition'])
+dataset = dataset.sort_values(['SUB', 'ITEM'])
+dataset.to_csv(os.path.join('data', 'item.csv'))
 
 
 
