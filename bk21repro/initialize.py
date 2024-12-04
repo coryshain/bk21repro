@@ -12,9 +12,16 @@ NAME_MAP = {
     'id': 'SUB',
     'Value': 'word',
     'Parameter': 'wordpos',
+    'EventTime': 'time',
     'Reading time': 'RT'
 }
-COLS = list(NAME_MAP.values()) + ['sentence', 'question', 'correct', 'position', 'critical_word', 'condition', 'cloze', 'log_cloze', 'trigram', 'log_trigram']
+GPT_COLS = ['gpt2', 'gpt2prob', 'gpt2region',
+            'gpt2regionprob', 'glovedistmin', 'glovedistmean' ,
+            'unigram', 'unigramregion', 'wlen', 'wlenregion']
+COLS = list(NAME_MAP.values()) + [
+    'sentence', 'question', 'correct', 'question_response_timestamp', 'question_RT', 'position', 'critical_word',
+    'condition', 'cloze', 'log_cloze', 'trigram', 'log_trigram'
+] + GPT_COLS
 
 # Get lists
 list1 = pd.read_csv(os.path.join('resources', 'List1.csv'))
@@ -34,9 +41,10 @@ if not os.path.exists(OSF):
     username = cory.shain@gmail.com
     project = b9kns
     '''
-    
-    with open('.osfcli.config', 'w') as f:
-        f.write(config)
+
+    if not os.path.exists('.osfcli.config'):
+        with open('.osfcli.config', 'w') as f:
+            f.write(config)
     os.system('osf clone')
     shutil.move(os.path.join(OSF, 'osfstorage'), './')
     shutil.rmtree(OSF)
@@ -46,6 +54,9 @@ BK_orig = pd.read_csv(os.path.join(OSF, 'SPRT_LogLin_216.csv'))
 
 items = BK_orig[['ITEM', 'position', 'critical_word', 'condition', 'cloze', 'log_cloze', 'trigram', 'log_trigram']]
 items = items.drop_duplicates()
+gpt_items = pd.read_csv(os.path.join('resources', 'gpt.csv'))
+gpt_items = gpt_items.rename(dict(group='ITEM'), axis=1)
+gpt_items = gpt_items[['ITEM', 'condition'] + GPT_COLS]
 
 # Get experiment data by munging horrible Ibex output
 dataset = []
@@ -55,6 +66,8 @@ for path in ('results_dev.csv', 'results_prod.csv'):
         headers = []
         item = []
         question_result = None
+        question_time = None
+        start_time = None
         for line in reader:
             if len(line):
                 if line[0].startswith('#'):
@@ -70,13 +83,16 @@ for path in ('results_dev.csv', 'results_prod.csv'):
                         if len(item):
                             item = pd.DataFrame(item)
                             item['correct'] = question_result
+                            item['question_response_timestamp'] = question_time
                             dataset.append(item)
                         question_result = None
+                        question_time = None
                         item = []
                     elif row['PennElementType'] == 'Controller-DashedSentence':
                         item.append(row)
                     elif row['PennElementType'] == 'Selector':
                         question_result = 'is_correct'
+                        question_time = row['EventTime']
 
 if not os.path.exists('data'):
     os.makedirs('data')
@@ -90,6 +106,31 @@ dataset.ITEM -= 1
 dataset = pd.merge(dataset, lists, on=['ITEM', 'selected_list'])
 dataset.ITEM += 4 # For some reason the BK item numbers start at 5
 dataset = pd.merge(dataset, items, on=['ITEM', 'condition'])
+dataset = pd.merge(dataset, gpt_items, on=['ITEM', 'condition'])
+dataset = dataset.sort_values(['SUB', 'time', 'ITEM', 'wordpos'])
+
+# Timestamp things
+# Events are timestamped relative to the END of each SPR trial. Fix this.
+# Get trial durations
+dataset['item_end'] = dataset.time
+dataset['item_duration'] = dataset.groupby(['SUB', 'ITEM'])['RT'].transform('sum')
+# Subtract trial durations from timestamps
+dataset.time -= dataset.item_duration
+# Compute word onsets from RT cumsums
+dataset.time += dataset.groupby(['SUB', 'ITEM']).RT.\
+    transform(lambda x: x.cumsum().shift(1, fill_value=0))
+# Subtract out the minimum timestamp to make timestamps relative to expt start
+dataset['expt_start'] = dataset.groupby('SUB')['time'].transform('min')
+dataset.time -= dataset.expt_start
+dataset.question_response_timestamp -= dataset.expt_start
+dataset.item_end -= dataset.expt_start
+# Get question RTs
+dataset['question_RT'] = dataset.question_response_timestamp - dataset.item_end
+# Rescale to seconds
+dataset.time /= 1000
+dataset.question_response_timestamp /= 1000
+
+# Save
 dataset = dataset[COLS]
 dataset.to_csv(os.path.join('data', 'all.csv'), index=False)
 
@@ -98,12 +139,12 @@ dataset = dataset[(dataset.critical_offset >= 0) & (dataset.critical_offset < 3)
 dataset['SUM_3RT'] = dataset.groupby(['SUB', 'ITEM'])['RT'].transform('sum')
 dataset = dataset[dataset.critical_offset == 0]
 del dataset['critical_offset']
-dataset['cutoff'] = dataset.groupby(['SUB'])['SUM_3RT'].transform('mean') + dataset.groupby(['SUB'])['SUM_3RT'].transform('std') * 3
+dataset['cutoff'] = dataset.groupby(['SUB'])['SUM_3RT'].transform('mean') + \
+                    dataset.groupby(['SUB'])['SUM_3RT'].transform('std') * 3
 dataset['SUM_3RT_trimmed'] = dataset[['SUM_3RT', 'cutoff']].min(axis=1)
 dataset['cutoff'] = 300
 dataset['SUM_3RT_trimmed'] = dataset[['SUM_3RT_trimmed', 'cutoff']].max(axis=1)
 del dataset['cutoff']
-print(dataset)
 dataset.to_csv(os.path.join('data', 'main.csv'))
 
 
