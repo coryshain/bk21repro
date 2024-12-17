@@ -2,6 +2,7 @@ import os
 import re
 import shutil
 import csv
+import numpy as np
 import pandas as pd
 
 
@@ -39,17 +40,18 @@ lists.condition = lists.condition.map(dict(L='LC', M='MC', H='HC'))
 # Get item data
 if not os.path.exists(OSF):
     config = '''[osf]
-    username = cory.shain@gmail.com
+    username = %s
     project = b9kns
     '''
-
-    if not os.path.exists('.osfcli.config'):
-        with open('.osfcli.config', 'w') as f:
-            f.write(config)
+    config_path = '.osfcli.config'
+    uname = input('Please input your OSF username: ')
+    with open(config_path, 'w') as f:
+        f.write(config % uname)
     os.system('osf clone')
     shutil.move(os.path.join(OSF, 'osfstorage'), './')
     shutil.rmtree(OSF)
     shutil.move('osfstorage', OSF)
+    os.remove(config_path)
 
 BK_orig = pd.read_csv(os.path.join(OSF, 'SPRT_LogLin_216.csv'))
 items = BK_orig[['ITEM', 'position', 'critical_word', 'condition', 'cloze', 'log_cloze', 'trigram', 'log_trigram']]
@@ -100,8 +102,8 @@ if not os.path.exists('data'):
 
 # Merge data
 dataset = pd.concat(dataset, axis=0)
-dataset.to_csv(os.path.join('data', 'word.csv'), index=False)
-dataset = pd.read_csv(os.path.join('data', 'word.csv'))
+dataset.to_csv(os.path.join('data', 'words.csv'), index=False)
+dataset = pd.read_csv(os.path.join('data', 'words.csv'))
 dataset = dataset.rename(NAME_MAP, axis=1)
 dataset.ITEM -= 1
 dataset = pd.merge(dataset, lists, on=['ITEM', 'selected_list'])
@@ -132,10 +134,13 @@ dataset.question_response_timestamp /= 1000
 # Save full word-level dataset
 cols = [x for x in COLS if x in dataset]
 dataset = dataset[cols]
-dataset.to_csv(os.path.join('data', 'word.csv'), index=False)
+dataset.to_csv(os.path.join('data', 'words.csv'), index=False)
 
 # Compile and save item-level dataset
 dataset = pd.merge(dataset, items, on=['ITEM', 'condition'])
+# B&K gave half a count (out of an average 90 completions per item) for items with cloze 0
+dataset['clozeprob'] = dataset.cloze.where(dataset.cloze > 0, 0.5 / 90)
+dataset['cloze'] = -np.log(dataset.clozeprob)
 dataset['critical_offset'] = dataset['wordpos'] - dataset['position']
 dataset = dataset[(dataset.critical_offset >= 0) & (dataset.critical_offset < 3)]
 dataset['SUM_3RT'] = dataset.groupby(['SUB', 'ITEM'])['RT'].transform('sum')
@@ -149,7 +154,7 @@ dataset['SUM_3RT_trimmed'] = dataset[['SUM_3RT_trimmed', 'cutoff']].max(axis=1)
 del dataset['cutoff']
 dataset = pd.merge(dataset, gpt_items, on=['ITEM', 'condition'])
 dataset = dataset.sort_values(['SUB', 'ITEM'])
-dataset.to_csv(os.path.join('data', 'item.csv'))
+dataset.to_csv(os.path.join('data', 'items.csv'), index=False)
 
 
 
