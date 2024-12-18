@@ -94,7 +94,11 @@ for path in os.listdir('ibex'):
                     elif row['PennElementType'] == 'Controller-DashedSentence':
                         item.append(row)
                     elif row['PennElementType'] == 'Selector':
-                        question_result = 'is_correct'
+                        question_result = row['is_correct']
+                        if question_result == 'correct':
+                            question_result = True
+                        else:
+                            question_result = False
                         question_time = row['EventTime']
 
 if not os.path.exists('data'):
