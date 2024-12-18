@@ -63,7 +63,7 @@ gpt_items = gpt_items[['ITEM', 'condition'] + GPT_COLS]
 
 # Get experiment data by munging horrible Ibex output
 dataset = []
-for path in os.listdir('ibex'):
+for path in [x for x in os.listdir('ibex') if x.endswith('.csv')]:
     with open(os.path.join('ibex', path), 'r') as f:
         reader = csv.reader(f)
         headers = []
