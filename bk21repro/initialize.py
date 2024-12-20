@@ -29,6 +29,8 @@ COLS = list(NAME_MAP.values()) + [
 list1 = pd.read_csv(os.path.join('resources', 'List1.csv'))
 list2 = pd.read_csv(os.path.join('resources', 'List2.csv'))
 list3 = pd.read_csv(os.path.join('resources', 'List3.csv'))
+assert len(list1) == len(list2) == len(list3), 'Stimulus list lengths do not match'
+n_items = len(list1)
 list1['selected_list'] = 'List1.csv'
 list2['selected_list'] = 'List2.csv'
 list3['selected_list'] = 'List3.csv'
@@ -109,7 +111,8 @@ dataset = pd.concat(dataset, axis=0)
 dataset.to_csv(os.path.join('data', 'words.csv'), index=False)
 dataset = pd.read_csv(os.path.join('data', 'words.csv'))
 dataset = dataset.rename(NAME_MAP, axis=1)
-dataset.ITEM -= 1
+n_prelim = dataset.ITEM.max() - n_items
+dataset.ITEM -= n_prelim
 dataset = pd.merge(dataset, lists, on=['ITEM', 'selected_list'])
 dataset.ITEM += 4 # For some reason the BK item numbers start at 5
 dataset = dataset.sort_values(['SUB', 'time', 'ITEM', 'wordpos'])
