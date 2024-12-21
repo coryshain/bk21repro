@@ -65,20 +65,20 @@ n_prelim = df[ITEM_COL].max() - n_items
 df[ITEM_COL] -= n_prelim
 df = pd.merge(df, lists, on=[ITEM_COL, 'selected_list'])
 df[ITEM_COL] += 4 # For some reason the BK item numbers start at 5
-df = df.sort_values([ITEM_COL, 'time', ITEM_COL, 'sentpos'])
+df = df.sort_values([PARTICIPANT_COL, 'time', ITEM_COL, 'sentpos'])
 
 # Timestamp things
 # Events are timestamped relative to the END of each SPR trial. Fix this.
 # 1. Get trial durations
 df['item_end'] = df.time
-df['item_duration'] = df.groupby([ITEM_COL, ITEM_COL])['RT'].transform('sum')
+df['item_duration'] = df.groupby([PARTICIPANT_COL, ITEM_COL])['RT'].transform('sum')
 # 2. Subtract trial durations from timestamps
 df.time -= df.item_duration
 # 3. Compute word onsets from RT cumsums
-df.time += df.groupby([ITEM_COL, ITEM_COL]).RT.\
+df.time += df.groupby([PARTICIPANT_COL, ITEM_COL]).RT.\
     transform(lambda x: x.cumsum().shift(1, fill_value=0))
 # 4. Subtract out the minimum timestamp to make timestamps relative to expt start
-df['expt_start'] = df.groupby(ITEM_COL)['time'].transform('min')
+df['expt_start'] = df.groupby(PARTICIPANT_COL)['time'].transform('min')
 df.time -= df.expt_start
 df.question_response_timestamp -= df.expt_start
 df.item_end -= df.expt_start
@@ -100,17 +100,17 @@ df['clozeprob'] = df.cloze.where(df.cloze > 0, 0.5 / 90)
 df['cloze'] = -np.log(df.clozeprob)
 df['critical_offset'] = df['sentpos'] - df['position']
 df = df[(df.critical_offset >= 0) & (df.critical_offset < 3)]
-df['SUM_3RT'] = df.groupby([ITEM_COL, ITEM_COL])['RT'].transform('sum')
+df['SUM_3RT'] = df.groupby([PARTICIPANT_COL, ITEM_COL])['RT'].transform('sum')
 df = df[df.critical_offset == 0]
 del df['critical_offset']
-df['cutoff'] = df.groupby([ITEM_COL])['SUM_3RT'].transform('mean') + \
-               df.groupby([ITEM_COL])['SUM_3RT'].transform('std') * 3
+df['cutoff'] = df.groupby([PARTICIPANT_COL])['SUM_3RT'].transform('mean') + \
+               df.groupby([PARTICIPANT_COL])['SUM_3RT'].transform('std') * 3
 df['SUM_3RT_trimmed'] = df[['SUM_3RT', 'cutoff']].min(axis=1)
 df['cutoff'] = 300
 df['SUM_3RT_trimmed'] = df[['SUM_3RT_trimmed', 'cutoff']].max(axis=1)
 del df['cutoff']
 df = pd.merge(df, gpt_items, on=[ITEM_COL, 'condition'])
-df = df.sort_values([ITEM_COL, ITEM_COL])
+df = df.sort_values([PARTICIPANT_COL, ITEM_COL])
 df.to_csv(os.path.join(DATA_DIR, 'items.csv'), index=False)
 
 
