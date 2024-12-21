@@ -1,17 +1,24 @@
 import os
 import shutil
-import csv
+try:
+    import importlib.resources as pkg_resources
+except ImportError:
+    import importlib_resources as pkg_resources
 import numpy as np
 import pandas as pd
 
 from bk21repro.constants import *
 from bk21repro.data import get_df_from_ibex_dir
+from bk21repro import resources
 
 
 # Get experimental lists
-list1 = pd.read_csv(os.path.join('resources', 'List1.csv'))
-list2 = pd.read_csv(os.path.join('resources', 'List2.csv'))
-list3 = pd.read_csv(os.path.join('resources', 'List3.csv'))
+with pkg_resources.as_file(pkg_resources.files(resources).joinpath('List1.csv')) as path:
+    list1 = pd.read_csv(path)
+with pkg_resources.as_file(pkg_resources.files(resources).joinpath('List2.csv')) as path:
+    list2 = pd.read_csv(path)
+with pkg_resources.as_file(pkg_resources.files(resources).joinpath('List3.csv')) as path:
+    list3 = pd.read_csv(path)
 assert len(list1) == len(list2) == len(list3), 'Stimulus list lengths do not match'
 n_items = len(list1)
 list1['selected_list'] = 'List1.csv'
@@ -42,7 +49,8 @@ BK_orig = pd.read_csv(os.path.join(OSF, 'SPRT_LogLin_216.csv'))
 items = BK_orig[['ITEM', 'position', 'critical_word', 'condition', 'cloze', 'log_cloze', 'trigram', 'log_trigram']]
 items = items.drop_duplicates()
 
-gpt_items = pd.read_csv(os.path.join('resources', 'gpt.csv'))
+with pkg_resources.as_file(pkg_resources.files(resources).joinpath('gpt.csv')) as path:
+    gpt_items = pd.read_csv(path)
 gpt_items = gpt_items.rename(dict(group='ITEM'), axis=1)
 gpt_items = gpt_items[['ITEM', 'condition'] + GPT_COLS]
 
