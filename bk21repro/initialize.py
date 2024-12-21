@@ -84,6 +84,7 @@ for path in [x for x in os.listdir('ibex') if x.endswith('.csv')]:
                         headers.insert(ix, col)
                 else:
                     row = dict(zip(headers, line))
+
                     if row['PennElementType'] == 'PennController':
                         if len(item):
                             item = pd.DataFrame(item)
@@ -93,9 +94,9 @@ for path in [x for x in os.listdir('ibex') if x.endswith('.csv')]:
                         question_result = None
                         question_time = None
                         item = []
-                    elif row['PennElementType'] == 'Controller-DashedSentence':
+                    elif row['PennElementType'] == 'Controller-SPR':
                         item.append(row)
-                    elif row['PennElementType'] == 'Selector':
+                    elif row['PennElementType'] == 'Selector' and row['Label'] != 'practice_trial':
                         question_result = row['is_correct']
                         if question_result == 'correct':
                             question_result = True
