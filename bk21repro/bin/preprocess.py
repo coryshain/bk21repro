@@ -26,7 +26,7 @@ list2['selected_list'] = 'List2.csv'
 list3['selected_list'] = 'List3.csv'
 lists = pd.concat([list1, list2, list3])
 lists = lists[['Item', 'Cloze', 'selected_list']]
-lists = lists.rename(dict(Item='ITEM', Cloze='condition'), axis=1)
+lists = lists.rename(dict(Item=ITEM_COL, Cloze='condition'), axis=1)
 lists.condition = lists.condition.map(dict(L='LC', M='MC', H='HC'))
 
 # Get item data
@@ -46,13 +46,13 @@ if not os.path.exists(OSF):
     os.remove(config_path)
 
 BK_orig = pd.read_csv(os.path.join(OSF, 'SPRT_LogLin_216.csv'))
-items = BK_orig[['ITEM', 'position', 'critical_word', 'condition', 'cloze', 'log_cloze', 'trigram', 'log_trigram']]
+items = BK_orig[[ITEM_COL, 'position', 'critical_word', 'condition', 'cloze', 'log_cloze', 'trigram', 'log_trigram']]
 items = items.drop_duplicates()
 
 with pkg_resources.as_file(pkg_resources.files(resources).joinpath('gpt.csv')) as path:
     gpt_items = pd.read_csv(path)
-gpt_items = gpt_items.rename(dict(group='ITEM'), axis=1)
-gpt_items = gpt_items[['ITEM', 'condition'] + GPT_COLS]
+gpt_items = gpt_items.rename(dict(group=ITEM_COL), axis=1)
+gpt_items = gpt_items[[ITEM_COL, 'condition'] + GPT_COLS]
 
 # Get experiment data by munging horrible Ibex output
 df = get_df_from_ibex_dir(IBEX_DIR)
@@ -61,24 +61,24 @@ if not os.path.exists(DATA_DIR):
     os.makedirs(DATA_DIR)
 
 # Merge data
-n_prelim = df.ITEM.max() - n_items
-df.ITEM -= n_prelim
-df = pd.merge(df, lists, on=['ITEM', 'selected_list'])
-df.ITEM += 4 # For some reason the BK item numbers start at 5
-df = df.sort_values(['SUB', 'time', 'ITEM', 'sentpos'])
+n_prelim = df[ITEM_COL].max() - n_items
+df[ITEM_COL] -= n_prelim
+df = pd.merge(df, lists, on=[ITEM_COL, 'selected_list'])
+df[ITEM_COL] += 4 # For some reason the BK item numbers start at 5
+df = df.sort_values([ITEM_COL, 'time', ITEM_COL, 'sentpos'])
 
 # Timestamp things
 # Events are timestamped relative to the END of each SPR trial. Fix this.
 # 1. Get trial durations
 df['item_end'] = df.time
-df['item_duration'] = df.groupby(['SUB', 'ITEM'])['RT'].transform('sum')
+df['item_duration'] = df.groupby([ITEM_COL, ITEM_COL])['RT'].transform('sum')
 # 2. Subtract trial durations from timestamps
 df.time -= df.item_duration
 # 3. Compute word onsets from RT cumsums
-df.time += df.groupby(['SUB', 'ITEM']).RT.\
+df.time += df.groupby([ITEM_COL, ITEM_COL]).RT.\
     transform(lambda x: x.cumsum().shift(1, fill_value=0))
 # 4. Subtract out the minimum timestamp to make timestamps relative to expt start
-df['expt_start'] = df.groupby('SUB')['time'].transform('min')
+df['expt_start'] = df.groupby(ITEM_COL)['time'].transform('min')
 df.time -= df.expt_start
 df.question_response_timestamp -= df.expt_start
 df.item_end -= df.expt_start
@@ -94,23 +94,23 @@ df = df[cols]
 df.to_csv(os.path.join(DATA_DIR, 'words.csv'), index=False)
 
 # Compile and save item-level dataset
-df = pd.merge(df, items, on=['ITEM', 'condition'])
+df = pd.merge(df, items, on=[ITEM_COL, 'condition'])
 # B&K gave half a count (out of an average 90 completions per item) for items with cloze 0
 df['clozeprob'] = df.cloze.where(df.cloze > 0, 0.5 / 90)
 df['cloze'] = -np.log(df.clozeprob)
 df['critical_offset'] = df['sentpos'] - df['position']
 df = df[(df.critical_offset >= 0) & (df.critical_offset < 3)]
-df['SUM_3RT'] = df.groupby(['SUB', 'ITEM'])['RT'].transform('sum')
+df['SUM_3RT'] = df.groupby([ITEM_COL, ITEM_COL])['RT'].transform('sum')
 df = df[df.critical_offset == 0]
 del df['critical_offset']
-df['cutoff'] = df.groupby(['SUB'])['SUM_3RT'].transform('mean') + \
-               df.groupby(['SUB'])['SUM_3RT'].transform('std') * 3
+df['cutoff'] = df.groupby([ITEM_COL])['SUM_3RT'].transform('mean') + \
+               df.groupby([ITEM_COL])['SUM_3RT'].transform('std') * 3
 df['SUM_3RT_trimmed'] = df[['SUM_3RT', 'cutoff']].min(axis=1)
 df['cutoff'] = 300
 df['SUM_3RT_trimmed'] = df[['SUM_3RT_trimmed', 'cutoff']].max(axis=1)
 del df['cutoff']
-df = pd.merge(df, gpt_items, on=['ITEM', 'condition'])
-df = df.sort_values(['SUB', 'ITEM'])
+df = pd.merge(df, gpt_items, on=[ITEM_COL, 'condition'])
+df = df.sort_values([ITEM_COL, ITEM_COL])
 df.to_csv(os.path.join(DATA_DIR, 'items.csv'), index=False)
 
 
