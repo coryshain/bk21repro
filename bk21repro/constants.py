@@ -19,3 +19,5 @@ COLS = list(NAME_MAP.values()) + [
 ] + GPT_COLS
 IBEX_DIR = 'ibex'
 DATA_DIR = 'data'
+PARTICIPANT_COL = 'SUB'
+ITEM_COL = 'ITEM'
