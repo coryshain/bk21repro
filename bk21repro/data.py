@@ -54,9 +54,16 @@ def get_df_from_ibex_file(path):
     return df
 
 def get_df_from_ibex_dir(path):
-    dataset = []
+    df = []
     for file in [x for x in os.listdir(path) if x.endswith('.csv')]:
-        dataset.append(get_df_from_ibex_file(file))
-    dataset = pd.concat(dataset, axis=0)
+        df.append(get_df_from_ibex_file(file))
+    df = pd.concat(df, axis=0)
 
-    return dataset
+    # Check for repeat offenders
+    acquisition_counts = df.groupby(PARTICIPANT_COL).acquisition_date.nunique()
+    sel = acquisition_counts > 1
+    if sel.any():
+        raise ValueError('Multiple acquisition dates found for some participants. Check your data.\n\n%s' %
+                         acquisition_counts[sel])
+
+    return df

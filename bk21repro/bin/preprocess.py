@@ -88,6 +88,9 @@ df['question_RT'] = df.question_response_timestamp - df.item_end
 df.time /= 1000
 df.question_response_timestamp /= 1000
 
+# Add acquisition date (useful for catching repeat participants)
+df.acquisition_date = pd.to_datetime(df.acquisition_date, unit='ms')
+
 # Save full word-level dataset
 cols = [x for x in COLS if x in df]
 df = df[cols]

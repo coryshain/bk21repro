@@ -3,8 +3,9 @@ import re
 OSF = 'b9kns'
 HEADER = re.compile('.*# (\d+)\. (.+)\.')
 NAME_MAP = {
-    'Order number of item': 'ITEM',
     'id': 'SUB',
+    'Results reception time': 'acquisition_date',
+    'Order number of item': 'ITEM',
     'Value': 'word',
     'Parameter': 'sentpos',
     'EventTime': 'time',
