@@ -6,6 +6,7 @@ except ImportError:
     import importlib_resources as pkg_resources
 import numpy as np
 import pandas as pd
+import osfclient
 
 from bk21repro.constants import *
 from bk21repro.data import get_df_from_ibex_dir
