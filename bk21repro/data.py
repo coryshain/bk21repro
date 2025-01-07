@@ -1,5 +1,6 @@
 import os
 import csv
+import joblib
 from tempfile import TemporaryDirectory
 import pandas as pd
 
@@ -47,6 +48,10 @@ def get_df_from_ibex_file(path):
     assert len(df), 'No data found in Ibex directory. Have you placed the source data in %s?' % IBEX_DIR
     df = pd.concat(df, axis=0)
     df = df.rename(NAME_MAP, axis=1)
+    n_subj = df[PARTICIPANT_COL].nunique()
+    df[PARTICIPANT_COL] = df[PARTICIPANT_COL].astype('str').apply(lambda x: joblib.hash(x))
+    assert n_subj == df[PARTICIPANT_COL].nunique(), 'Number of participants changed after hashing, collisions likely.' \
+                                                    'Before: %d. After: %d.' % (n_subj, df[PARTICIPANT_COL].nunique())
     with TemporaryDirectory() as tmp_dir_path:
         df.to_csv(os.path.join(tmp_dir_path, 'words.csv'), index=False)
         df = pd.read_csv(os.path.join(tmp_dir_path, 'words.csv'))

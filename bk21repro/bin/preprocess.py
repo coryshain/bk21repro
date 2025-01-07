@@ -106,12 +106,16 @@ df['critical_offset'] = df['sentpos'] - df['position']
 df = df[(df.critical_offset >= 0) & (df.critical_offset < 3)]
 df['SUM_3RT'] = df.groupby([PARTICIPANT_COL, ITEM_COL])['RT'].transform('sum')
 df = df[df.critical_offset == 0]
+df['SUM_3RT_tmp'] = df['SUM_3RT']
+df.SUM_3RT_tmp = df.SUM_3RT_tmp.where((df.SUM_3RT_tmp > 0) & (df.SUM_3RT_tmp < INITIAL_CUTOFF), np.nan)
 del df['critical_offset']
-df['cutoff'] = df.groupby([PARTICIPANT_COL])['SUM_3RT'].transform('mean') + \
-               df.groupby([PARTICIPANT_COL])['SUM_3RT'].transform('std') * 3
+df['cutoff'] = df.groupby([PARTICIPANT_COL, 'condition'])['SUM_3RT_tmp'].transform('mean') + \
+               df.groupby([PARTICIPANT_COL, 'condition'])['SUM_3RT_tmp'].transform('std') * 3
 df['SUM_3RT_trimmed'] = df[['SUM_3RT', 'cutoff']].min(axis=1)
 df['cutoff'] = 300
 df['SUM_3RT_trimmed'] = df[['SUM_3RT_trimmed', 'cutoff']].max(axis=1)
+df['is_trimmed'] = (~np.isclose(df.SUM_3RT, df.SUM_3RT_trimmed)).astype(int)
+del df['SUM_3RT_tmp']
 del df['cutoff']
 df = pd.merge(df, gpt_items, on=[ITEM_COL, 'condition'])
 df = df.sort_values([PARTICIPANT_COL, ITEM_COL])
